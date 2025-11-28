@@ -135,6 +135,12 @@ def get_base_path() -> Path:
 # Save config.json next to the executable/script
 SETTINGS_PATH = get_base_path() / "config.json"
 
+def get_icon(name: str) -> QtGui.QIcon:
+    path = get_base_path() / "assets" / name
+    if path.exists():
+        return QtGui.QIcon(str(path))
+    return QtGui.QIcon()
+
 def get_downloads_dir() -> Path:
     path = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DownloadLocation)
     return Path(path) if path else Path.home()
@@ -184,6 +190,19 @@ class DropZone(QtWidgets.QFrame):
         p.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         p.drawRoundedRect(rect, r, r)
         
+        # Icon
+        icon = get_icon("cloud-arrow-up.svg")
+        if not icon.isNull():
+            icon_size = 48
+            # Draw icon centered, shifted up
+            icon_rect = QtCore.QRect(
+                (rect.width() - icon_size) // 2,
+                (rect.height() // 2) - 40,
+                icon_size,
+                icon_size
+            )
+            icon.paint(p, icon_rect)
+
         # Text
         p.setPen(QtGui.QColor(THEME["colors"]["text_main"]))
         font = self.font()
@@ -192,7 +211,8 @@ class DropZone(QtWidgets.QFrame):
         font.setPixelSize(14)
         p.setFont(font)
         
-        text_rect = rect.adjusted(0, -10, 0, -10)
+        # Shift text down to make room for icon
+        text_rect = rect.adjusted(0, 30, 0, 0)
         p.drawText(text_rect, QtCore.Qt.AlignmentFlag.AlignCenter, "Drop files or folders here")
         
         # Subtext
@@ -200,7 +220,7 @@ class DropZone(QtWidgets.QFrame):
         font.setBold(False)
         font.setPixelSize(12)
         p.setFont(font)
-        sub_rect = rect.adjusted(0, 20, 0, 20)
+        sub_rect = rect.adjusted(0, 60, 0, 0)
         p.drawText(sub_rect, QtCore.Qt.AlignmentFlag.AlignCenter, "— or click to browse —")
 
     def enterEvent(self, event: QtGui.QEnterEvent) -> None:
@@ -378,11 +398,13 @@ class MainWindow(QtWidgets.QMainWindow):
         
         self.btnRemove = QtWidgets.QPushButton("Remove Selected")
         self.btnRemove.setObjectName("btnSmall")
+        self.btnRemove.setIcon(get_icon("trash.svg"))
         self.btnRemove.clicked.connect(self._remove_selected)
         hbox_list.addWidget(self.btnRemove)
 
         self.btnClear = QtWidgets.QPushButton("Clear All")
         self.btnClear.setObjectName("btnSmall")
+        self.btnClear.setIcon(get_icon("broom.svg"))
         self.btnClear.clicked.connect(self._clear_queue)
         hbox_list.addWidget(self.btnClear)
         
@@ -474,6 +496,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Browse button slightly separated from input
         self.btnBrowseOutput = QtWidgets.QPushButton("Browse")
         self.btnBrowseOutput.setObjectName("btnBrowse")
+        self.btnBrowseOutput.setIcon(get_icon("folder-open.svg"))
+        self.btnBrowseOutput.setIconSize(QtCore.QSize(18, 18))
         
         # Helper layout to separate input and browse button slightly more than label
         box_browse = QtWidgets.QVBoxLayout(); box_browse.setSpacing(px("gap_tight"))
@@ -487,6 +511,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # -- Convert Button --
         self.btnConvertPrimary = QtWidgets.QPushButton("CONVERT 0 ITEMS")
         self.btnConvertPrimary.setObjectName("btnConvertPrimary")
+        self.btnConvertPrimary.setIcon(get_icon("arrows-clockwise.svg"))
+        self.btnConvertPrimary.setIconSize(QtCore.QSize(20, 20))
         self.btnConvertPrimary.setDefault(True); self.btnConvertPrimary.setEnabled(False)
         right_layout.addWidget(self.btnConvertPrimary)
 
