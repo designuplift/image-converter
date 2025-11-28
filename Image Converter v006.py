@@ -161,6 +161,7 @@ class DropZone(QtWidgets.QFrame):
         self.setMinimumHeight(160) 
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         self._hover = False
+        self._mouse_hover = False
         self.setToolTip("Drop files or folders")
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
@@ -171,7 +172,8 @@ class DropZone(QtWidgets.QFrame):
         r = px("radius")
         
         # Background
-        p.setBrush(QtGui.QColor(THEME["colors"]["surface_bg"]))
+        bg_col = THEME["colors"]["surface_hover"] if self._mouse_hover else THEME["colors"]["surface_bg"]
+        p.setBrush(QtGui.QColor(bg_col))
         p.setPen(QtCore.Qt.PenStyle.NoPen)
         p.drawRoundedRect(rect, r, r)
         
@@ -200,6 +202,16 @@ class DropZone(QtWidgets.QFrame):
         p.setFont(font)
         sub_rect = rect.adjusted(0, 20, 0, 20)
         p.drawText(sub_rect, QtCore.Qt.AlignmentFlag.AlignCenter, "— or click to browse —")
+
+    def enterEvent(self, event: QtGui.QEnterEvent) -> None:
+        self._mouse_hover = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        self._mouse_hover = False
+        self.update()
+        super().leaveEvent(event)
 
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent) -> None:
         if e.mimeData().hasUrls():
