@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import platform
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Iterable, Set, Optional
@@ -56,7 +57,23 @@ THEME = {
         "radius":       "8px",
         "btn_height":   "38px",
         "lg_btn_height":"48px",
-    """
+        "font_ui":      "10pt",
+        "font_label":   "11px",
+    },
+    "font_family": "Segoe UI" if platform.system() == "Windows" else "Helvetica Neue",
+}
+
+def px(key: str) -> int:
+    val = THEME["dimens"].get(key)
+    if val:
+        return int(val.replace("px", ""))
+    # Fallback for gaps if not in dimens
+    if key == "gap_tight": return 8
+    if key == "gap_label": return 4
+    if key == "gap_loose": return 16
+    return 0
+
+def get_base_path() -> Path:
     if getattr(sys, 'frozen', False):
         # Running as compiled .exe
         return Path(sys.executable).parent
@@ -423,25 +440,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btnConvertPrimary.clicked.connect(self._on_convert)
 
         # Shortcuts
-        QtGui.QShortcut(QtGui.QKeySequence("Ctrl+O" if sys.platform=="win32" else "Meta+O"), self, activated=self._add_files_dialog)
-        QtGui.QShortcut(QtGui.QKeySequence("Ctrl+K" if sys.platform=="win32" else "Meta+K"), self, activated=lambda: self._clear_queue())
+        QtGui.QShortcut(QtGui.QKeySequence("Ctrl+O" if platform.system() == "Windows" else "Meta+O"), self, activated=self._add_files_dialog)
+        QtGui.QShortcut(QtGui.QKeySequence("Ctrl+K" if platform.system() == "Windows" else "Meta+K"), self, activated=lambda: self._clear_queue())
         QtGui.QShortcut(QtGui.QKeySequence("Delete"), self, activated=self._remove_selected)
 
-        # Data + settings
-        self._queue_set: Set[Path] = set()
-        self._save_timer = QtCore.QTimer(self); self._save_timer.setSingleShot(True); self._save_timer.setInterval(300)
-        self._save_timer.timeout.connect(self._save_settings)
-
-            "default_quality": 90,
-            "default_width": "",
-            "open_when_done": True,
-            "last_output_path": str(get_downloads_dir()),
-            "window": {"w": 850, "h": 600, "x": 100, "y": 100},
-        }
-
-    def _load_settings(self) -> None:
-        # No longer using parent.mkdir, assuming base dir exists for .exe/.py
-        data = self._default_settings()
         if SETTINGS_PATH.exists():
             try:
                 with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
