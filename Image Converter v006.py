@@ -121,7 +121,7 @@ def px(key: str) -> int:
     # Fallback for gaps if not in dimens
     if key == "gap_tight": return 8
     if key == "gap_label": return 4
-    if key == "gap_loose": return 16
+    if key == "gap_loose": return 24
     return 0
 
 def get_base_path() -> Path:
@@ -135,11 +135,33 @@ def get_base_path() -> Path:
 # Save config.json next to the executable/script
 SETTINGS_PATH = get_base_path() / "config.json"
 
-def get_icon(name: str) -> QtGui.QIcon:
+def get_icon(name: str, color: str = None) -> QtGui.QIcon:
     path = get_base_path() / "assets" / name
-    if path.exists():
-        return QtGui.QIcon(str(path))
-    return QtGui.QIcon()
+    if not path.exists():
+        return QtGui.QIcon()
+    
+    if color:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                svg_data = f.read()
+            # Simple replacement of currentColor or fill
+            # Note: This assumes the SVG uses 'currentColor' or has a fill attribute we can target.
+            # Phosphor icons usually use 'currentColor' or 'none' for fill.
+            # If it has fill="currentColor", we replace it.
+            if "currentColor" in svg_data:
+                svg_data = svg_data.replace("currentColor", color)
+            else:
+                # If no currentColor, try to inject fill in the svg tag or path
+                # This is a bit hacky, but for Phosphor icons which we know, replacing currentColor is usually enough.
+                pass
+                
+            pm = QtGui.QPixmap()
+            pm.loadFromData(svg_data.encode("utf-8"))
+            return QtGui.QIcon(pm)
+        except Exception:
+            pass
+            
+    return QtGui.QIcon(str(path))
 
 def get_downloads_dir() -> Path:
     path = QtCore.QStandardPaths.writableLocation(QtCore.QStandardPaths.StandardLocation.DownloadLocation)
@@ -191,7 +213,8 @@ class DropZone(QtWidgets.QFrame):
         p.drawRoundedRect(rect, r, r)
         
         # Icon
-        icon = get_icon("cloud-arrow-up.svg")
+        # Use text_main color for the icon to match the text
+        icon = get_icon("upload-simple.svg", THEME["colors"]["text_main"])
         if not icon.isNull():
             icon_size = 48
             # Draw icon centered, shifted up
@@ -396,15 +419,15 @@ class MainWindow(QtWidgets.QMainWindow):
         hbox_list.addWidget(lblList)
         hbox_list.addStretch()
         
-        self.btnRemove = QtWidgets.QPushButton("Remove Selected")
+        self.btnRemove = QtWidgets.QPushButton("  Remove Selected")
         self.btnRemove.setObjectName("btnSmall")
-        self.btnRemove.setIcon(get_icon("trash.svg"))
+        self.btnRemove.setIcon(get_icon("trash.svg", THEME["colors"]["text_muted"]))
         self.btnRemove.clicked.connect(self._remove_selected)
         hbox_list.addWidget(self.btnRemove)
 
-        self.btnClear = QtWidgets.QPushButton("Clear All")
+        self.btnClear = QtWidgets.QPushButton("  Clear All")
         self.btnClear.setObjectName("btnSmall")
-        self.btnClear.setIcon(get_icon("broom.svg"))
+        self.btnClear.setIcon(get_icon("broom.svg", THEME["colors"]["text_muted"]))
         self.btnClear.clicked.connect(self._clear_queue)
         hbox_list.addWidget(self.btnClear)
         
@@ -494,9 +517,9 @@ class MainWindow(QtWidgets.QMainWindow):
         box_out.addWidget(self.txtOutputPath)
 
         # Browse button slightly separated from input
-        self.btnBrowseOutput = QtWidgets.QPushButton("Browse")
+        self.btnBrowseOutput = QtWidgets.QPushButton("  Browse")
         self.btnBrowseOutput.setObjectName("btnBrowse")
-        self.btnBrowseOutput.setIcon(get_icon("folder-open.svg"))
+        self.btnBrowseOutput.setIcon(get_icon("folder-open.svg", "#FFFFFF"))
         self.btnBrowseOutput.setIconSize(QtCore.QSize(18, 18))
         
         # Helper layout to separate input and browse button slightly more than label
@@ -509,9 +532,10 @@ class MainWindow(QtWidgets.QMainWindow):
         right_layout.addStretch(1)
 
         # -- Convert Button --
-        self.btnConvertPrimary = QtWidgets.QPushButton("CONVERT 0 ITEMS")
+        self.btnConvertPrimary = QtWidgets.QPushButton("CONVERT 0 ITEMS  ")
         self.btnConvertPrimary.setObjectName("btnConvertPrimary")
-        self.btnConvertPrimary.setIcon(get_icon("arrows-clockwise.svg"))
+        self.btnConvertPrimary.setLayoutDirection(QtCore.Qt.LayoutDirection.RightToLeft)
+        self.btnConvertPrimary.setIcon(get_icon("caret-right.svg", "#FFFFFF"))
         self.btnConvertPrimary.setIconSize(QtCore.QSize(20, 20))
         self.btnConvertPrimary.setDefault(True); self.btnConvertPrimary.setEnabled(False)
         right_layout.addWidget(self.btnConvertPrimary)
@@ -660,6 +684,8 @@ class MainWindow(QtWidgets.QMainWindow):
             padding: 4px;
             font-weight: bold;
         }}
+        QTreeWidget::item {{ border: none; }}
+        QHeaderView::section {{ background-color: {c["window_bg"]}; border: none; border-bottom: 2px solid {c["surface_bg"]}; }}
 
         /* CHOICE CHIPS (Format/Quality) */
         QToolButton[seg="true"] {{
@@ -733,7 +759,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _update_convert_label(self):
         count = self.treeFiles.topLevelItemCount()
-        self.btnConvertPrimary.setText(f"CONVERT {count} ITEMS")
+        self.btnConvertPrimary.setText(f"CONVERT {count} ITEMS  ")
 
     def _update_convert_enabled(self):
         out_ok = bool(self.txtOutputPath.text()) and Path(self.txtOutputPath.text()).exists()
