@@ -56,25 +56,6 @@ THEME = {
         "radius":       "8px",
         "btn_height":   "38px",
         "lg_btn_height":"48px",
-        "font_ui":      "13px",
-        "font_label":   "12px",
-        "gap_label":    "4px",
-        "gap_tight":    "8px",
-        "gap_loose":    "16px",
-    },
-    "font_family": "Segoe UI" if sys.platform == "win32" else "sans-serif"
-}
-
-def px(key: str) -> int:
-    val = THEME["dimens"].get(key, "0")
-    return int(val.replace("px", "").strip())
-
-# ----------------------------- Utilities -----------------------------------
-
-def get_base_path() -> Path:
-    """
-    Returns the folder where the executable or script is running.
-    Crucial for PyInstaller --onefile builds to avoid saving to Temp.
     """
     if getattr(sys, 'frozen', False):
         # Running as compiled .exe
@@ -451,18 +432,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._save_timer = QtCore.QTimer(self); self._save_timer.setSingleShot(True); self._save_timer.setInterval(300)
         self._save_timer.timeout.connect(self._save_settings)
 
-        self._load_settings()
-        self._apply_theme()
-        self._update_convert_label()
-        self._update_convert_enabled()
-        
-        self._active_tasks = 0
-        self._progress_dialog = None
-
-    # ---------------------- Settings ---------------------------------------
-    def _default_settings(self) -> dict:
-        return {
-            "default_format": "JPEG",
             "default_quality": 90,
             "default_width": "",
             "open_when_done": True,
