@@ -108,7 +108,7 @@ THEME = {
         "radius":       "8px",
         "btn_height":   "38px",
         "lg_btn_height":"48px",
-        "font_ui":      "10pt",
+        "font_ui":      "12pt",
         "font_label":   "11px",
     },
     "font_family": "Segoe UI" if platform.system() == "Windows" else "Helvetica Neue",
@@ -757,6 +757,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_convert_label(self):
         count = self.treeFiles.topLevelItemCount()
         self.btnConvertPrimary.setText(f"CONVERT {count} ITEMS  ")
+        self.btnConvertPrimary.setIcon(get_icon("caret-right.svg", "#FFFFFF"))
 
     def _update_convert_enabled(self):
         out_ok = bool(self.txtOutputPath.text()) and Path(self.txtOutputPath.text()).exists()
@@ -964,6 +965,7 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if not cancelled:
             self.btnConvertPrimary.setText("COMPLETED")
+            self.btnConvertPrimary.setIcon(QtGui.QIcon())
             self.statusBar().showMessage(f"Done. OK: {self._stats_ok}, Err: {self._stats_err}", 4000)
 
     # -------------------------- Events --------------------------------------
