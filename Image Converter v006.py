@@ -14,9 +14,60 @@ import os
 import sys
 import json
 import platform
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Iterable, Set, Optional
+
+def bootstrap_environment():
+    """
+    Checks if running in a virtual environment. If not, creates one, 
+    installs dependencies, and relaunches the script inside it.
+    """
+    # 0. Check if running as a frozen app (PyInstaller)
+    if getattr(sys, 'frozen', False):
+        return
+
+    # 1. Check if we are already in a virtual environment
+    is_venv = (hasattr(sys, 'real_prefix') or
+               (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix))
+
+    if is_venv:
+        # We are safe. Continue running the app normally.
+        return
+
+    print("--- Setting up environment automatically (First Run Only) ---")
+    
+    # 2. Define where the venv should be
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    venv_dir = os.path.join(project_dir, ".venv")
+    requirements_file = os.path.join(project_dir, "requirements.txt")
+
+    # 3. Create venv if it doesn't exist
+    if not os.path.exists(venv_dir):
+        print(f"Creating virtual environment in {venv_dir}...")
+        subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+
+    # 4. Determine paths for the new Python and Pip executables
+    if platform.system() == "Windows":
+        python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
+        pip_exe = os.path.join(venv_dir, "Scripts", "pip.exe")
+    else: # Mac / Linux
+        python_exe = os.path.join(venv_dir, "bin", "python")
+        pip_exe = os.path.join(venv_dir, "bin", "pip")
+
+    # 5. Install dependencies if requirements.txt exists
+    if os.path.exists(requirements_file):
+        print("Installing dependencies...")
+        subprocess.check_call([pip_exe, "install", "-r", requirements_file])
+    
+    # 6. Relaunch this script using the NEW python executable
+    print("Restarting in virtual environment...")
+    subprocess.call([python_exe] + sys.argv)
+    sys.exit()
+
+# --- Run the bootstrap before anything else ---
+bootstrap_environment()
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -186,7 +237,6 @@ class ConvertSettings:
     width: Optional[int]
     outdir: Path
     downscale_only: bool = True
-    open_when_done: bool = True
 
 class WorkerSignals(QtCore.QObject):
     # Result: (success, skipped, error, bytes_in, bytes_out, source_path)
@@ -294,6 +344,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(950, 650)
 
         self.threadpool = QtCore.QThreadPool()
+        self._queue_set = set()
 
         central = QtWidgets.QWidget(); self.setCentralWidget(central)
         root = QtWidgets.QHBoxLayout(central); root.setContentsMargins(24,24,24,24); root.setSpacing(24)
@@ -416,9 +467,6 @@ class MainWindow(QtWidgets.QMainWindow):
         box_browse = QtWidgets.QVBoxLayout(); box_browse.setSpacing(px("gap_tight"))
         box_browse.addWidget(self.btnBrowseOutput)
         
-        self.chkOpenWhenDone = QtWidgets.QCheckBox("Open folder after convert"); self.chkOpenWhenDone.setChecked(True)
-        box_browse.addWidget(self.chkOpenWhenDone)
-        
         box_out.addLayout(box_browse)
         right_layout.addLayout(box_out)
 
@@ -444,6 +492,14 @@ class MainWindow(QtWidgets.QMainWindow):
         QtGui.QShortcut(QtGui.QKeySequence("Ctrl+K" if platform.system() == "Windows" else "Meta+K"), self, activated=lambda: self._clear_queue())
         QtGui.QShortcut(QtGui.QKeySequence("Delete"), self, activated=self._remove_selected)
 
+        QtGui.QShortcut(QtGui.QKeySequence("Delete"), self, activated=self._remove_selected)
+
+        self._save_timer = QtCore.QTimer()
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(500)
+        self._save_timer.timeout.connect(self._save_settings)
+
+        data = self._default_settings()
         if SETTINGS_PATH.exists():
             try:
                 with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
@@ -465,7 +521,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 b.setChecked(True)
 
         self.txtWidth.setText(str(data.get("default_width","")) if data.get("default_width","") else "")
-        self.chkOpenWhenDone.setChecked(bool(data.get("open_when_done", True)))
         
         last_out = Path(data.get("last_output_path", str(get_downloads_dir())))
         self.txtOutputPath.setText(str(last_out if last_out.exists() else get_downloads_dir()))
@@ -477,7 +532,18 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception:
             pass
 
+        self._apply_theme()
+
     def _schedule_save(self): self._save_timer.start()
+
+    def _default_settings(self):
+        return {
+            "default_format": "JPEG",
+            "default_quality": 90,
+            "default_width": "",
+            "last_output_path": str(get_downloads_dir()),
+            "window": {"w": 850, "h": 600, "x": 100, "y": 100}
+        }
 
     def _save_settings(self) -> None:
         data = self._default_settings()
@@ -491,7 +557,6 @@ class MainWindow(QtWidgets.QMainWindow):
             "default_format": fmt,
             "default_quality": self._current_quality(),
             "default_width": int(self.txtWidth.text()) if self.txtWidth.text().strip() else "",
-            "open_when_done": self.chkOpenWhenDone.isChecked(),
             "last_output_path": self.txtOutputPath.text() or str(get_downloads_dir()),
             "window": {"w": self.width(), "h": self.height(), "x": self.x(), "y": self.y()},
         })
@@ -554,19 +619,6 @@ class MainWindow(QtWidgets.QMainWindow):
             border-radius: {d["radius"]};
             padding: 4px;
             outline: none;
-        }}
-        QTreeWidget::item {{
-            padding: 6px;
-            border-bottom: 1px solid {c["surface_bg"]};
-        }}
-        QTreeWidget::item:selected {{
-            background-color: {c["surface_bg"]};
-            color: {c["text_main"]};
-        }}
-        QHeaderView::section {{
-            background-color: {c["window_bg"]};
-            color: {c["text_muted"]};
-            border: none;
             padding: 4px;
             font-weight: bold;
         }}
@@ -747,9 +799,8 @@ class MainWindow(QtWidgets.QMainWindow):
         q = self._current_quality()
         width = int(self.txtWidth.text()) if self.txtWidth.text().strip() else None
         outdir = Path(self.txtOutputPath.text())
-        open_when_done = self.chkOpenWhenDone.isChecked()
         return ConvertSettings(fmt=fmt, quality=q, width=width, outdir=outdir, 
-                               downscale_only=True, open_when_done=open_when_done)
+                               downscale_only=True)
 
     def _on_convert(self):
         if not (self.treeFiles.topLevelItemCount() > 0 and self.txtOutputPath.text() and Path(self.txtOutputPath.text()).exists()):
@@ -821,7 +872,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if ok:
                 saved = b_in - b_out
                 pct = (saved / b_in * 100) if b_in > 0 else 0
-                found_item.setText(2, f"Done (-{int(pct)}%)")
+                found_item.setText(2, f"{human_bytes(b_out)} (-{int(pct)}%)")
                 found_item.setForeground(2, QtGui.QBrush(QtGui.QColor(THEME["colors"]["success"])))
             elif skip:
                 found_item.setText(2, "Skipped")
@@ -852,10 +903,6 @@ class MainWindow(QtWidgets.QMainWindow):
         
         if not cancelled:
             self.statusBar().showMessage(f"Done. OK: {self._stats_ok}, Err: {self._stats_err}", 4000)
-            
-            s = self._settings_from_ui()
-            if s.open_when_done:
-                QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(s.outdir)))
 
     # -------------------------- Events --------------------------------------
     def closeEvent(self, e: QtGui.QCloseEvent) -> None:
