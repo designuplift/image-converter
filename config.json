@@ -1,6 +1,6 @@
 {
-  "default_format": "WEBP",
-  "default_quality": 50,
+  "default_format": "JPEG",
+  "default_quality": 60,
   "default_width": "",
   "last_output_path": "/Users/ayberkkole/Desktop",
   "window": {

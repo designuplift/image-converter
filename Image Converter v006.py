@@ -121,7 +121,7 @@ def px(key: str) -> int:
     # Fallback for gaps if not in dimens
     if key == "gap_tight": return 8
     if key == "gap_label": return 4
-    if key == "gap_loose": return 24
+    if key == "gap_loose": return 32
     return 0
 
 def get_base_path() -> Path:
@@ -145,14 +145,9 @@ def get_icon(name: str, color: str = None) -> QtGui.QIcon:
             with open(path, "r", encoding="utf-8") as f:
                 svg_data = f.read()
             # Simple replacement of currentColor or fill
-            # Note: This assumes the SVG uses 'currentColor' or has a fill attribute we can target.
-            # Phosphor icons usually use 'currentColor' or 'none' for fill.
-            # If it has fill="currentColor", we replace it.
             if "currentColor" in svg_data:
                 svg_data = svg_data.replace("currentColor", color)
             else:
-                # If no currentColor, try to inject fill in the svg tag or path
-                # This is a bit hacky, but for Phosphor icons which we know, replacing currentColor is usually enough.
                 pass
                 
             pm = QtGui.QPixmap()
@@ -685,6 +680,8 @@ class MainWindow(QtWidgets.QMainWindow):
             font-weight: bold;
         }}
         QTreeWidget::item {{ border: none; }}
+        QTreeWidget::item:selected {{ background-color: {c["primary"]}; color: white; }}
+        QTreeWidget::item:selected:!active {{ background-color: {c["surface_hover"]}; color: white; }}
         QHeaderView::section {{ background-color: {c["window_bg"]}; border: none; border-bottom: 2px solid {c["surface_bg"]}; }}
 
         /* CHOICE CHIPS (Format/Quality) */
@@ -966,6 +963,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.dropzone.setEnabled(True)
         
         if not cancelled:
+            self.btnConvertPrimary.setText("COMPLETED")
             self.statusBar().showMessage(f"Done. OK: {self._stats_ok}, Err: {self._stats_err}", 4000)
 
     # -------------------------- Events --------------------------------------
