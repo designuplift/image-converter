@@ -79,12 +79,13 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 try:
     import pillow_heif  # type: ignore
     pillow_heif.register_heif_opener()
+    pillow_heif.register_avif_opener()
     HEIF_AVAILABLE = True
 except Exception:
     HEIF_AVAILABLE = False
 
 APP_ORG = "DesignUplift"
-APP_NAME = "ImageProcessor"
+APP_NAME = "Image Converter Bro"
 
 SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp", ".gif", ".heic", ".heif"}
 
@@ -126,7 +127,9 @@ def px(key: str) -> int:
 
 def get_base_path() -> Path:
     if getattr(sys, 'frozen', False):
-        # Running as compiled .exe
+        # Running as compiled .exe / .app
+        if hasattr(sys, '_MEIPASS'):
+            return Path(sys._MEIPASS)
         return Path(sys.executable).parent
     else:
         # Running as .py script
@@ -330,7 +333,7 @@ class ConvertTask(QtCore.QRunnable):
                     im = im.resize(new_size, Image.Resampling.LANCZOS)
 
                 fmt = self.s.fmt.lower()
-                ext = ".jpg" if fmt == "jpeg" else (".png" if fmt == "png" else ".webp")
+                ext = ".jpg" if fmt == "jpeg" else (".avif" if fmt == "avif" else ".webp")
 
                 suffix_str = f"_{fmt.upper()}_{self.s.quality}"
                 stem = src.stem + suffix_str
@@ -353,8 +356,9 @@ class ConvertTask(QtCore.QRunnable):
                     q = int(self.s.quality)
                     save_kwargs.update(dict(format="JPEG", quality=q, optimize=True,
                                             progressive=True, subsampling=1 if q < 85 else 0))
-                elif fmt == "png":
-                    save_kwargs.update(dict(format="PNG", optimize=True, compress_level=6))
+                elif fmt == "avif":
+                    q = int(self.s.quality)
+                    save_kwargs.update(dict(format="AVIF", quality=q, speed=6))
                 else:  # webp
                     q = int(self.s.quality)
                     save_kwargs.update(dict(format="WEBP", quality=q, method=6))
@@ -389,7 +393,7 @@ class ConvertTask(QtCore.QRunnable):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Image Processor v006")
+        self.setWindowTitle("Image Converter Bro")
         self.setMinimumSize(850, 600)
         self.resize(950, 650)
 
@@ -455,7 +459,7 @@ class MainWindow(QtWidgets.QMainWindow):
         hbox_fmt = QtWidgets.QHBoxLayout(); hbox_fmt.setSpacing(px("gap_tight"))
         self._fmt_group = QtWidgets.QButtonGroup(self); self._fmt_group.setExclusive(True)
         self.fmtButtons = []
-        for f in ["WEBP", "JPEG", "PNG"]:
+        for f in ["WEBP", "JPEG", "AVIF"]:
             btn = QtWidgets.QToolButton(); btn.setCheckable(True); btn.setText(f); btn.setProperty("seg", True)
             btn.setSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
             self._fmt_group.addButton(btn)
